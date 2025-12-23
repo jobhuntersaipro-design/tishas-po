@@ -13,12 +13,17 @@ import test_engine  # Backend logic
 # --- Page Config ---
 st.set_page_config(page_title="Tishas PO Extractor", layout="wide", page_icon="📄")
 
-# --- HIDE STREAMLIT FOOTER ---
+# --- HIDE STREAMLIT FOOTER & DEPLOY BUTTON ---
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             footer {visibility: hidden;}
             header {visibility: hidden;}
+            /* This targets the specific "Deploy" and "Manage" buttons in the cloud */
+            .stAppDeployButton {display:none;}
+            #stDecoration {display:none;}
+            /* This hides the "Streamlit" watermark link in the bottom right */
+            [data-testid="stStatusWidget"] {display:none;}
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
