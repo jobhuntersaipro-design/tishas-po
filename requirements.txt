@@ -1,0 +1,8 @@
+streamlit
+pandas
+google-generativeai
+google-cloud-storage
+pdfplumber
+pdf2image
+Pillow
+mysql-connector-python
