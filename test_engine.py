@@ -275,33 +275,36 @@ def save_local_copy(temp_file_path, original_filename):
 
 def upload_to_gcs(local_file_path, original_filename):
     """
-    Uploads to GCS using Secrets and checks for duplicates.
+    Uploads to GCS using the original filename.
+    Organizes files into folders named by their content hash to prevent conflicts.
     """
     try:
         client = get_gcs_client()
         if not client:
-            print("GCS Client unavailable (secrets missing?). Using local save.")
+            print("GCS Client unavailable. Using local save.")
             return save_local_copy(local_file_path, original_filename)
 
         bucket = client.bucket(GCS_BUCKET_NAME)
 
-        # 1. Generate Hash to check for duplicates
+        # 1. Generate Hash to ensure unique folder path
         with open(local_file_path, "rb") as f:
             file_hash = hashlib.md5(f.read()).hexdigest()
 
-        # 2. Create Filename
-        file_ext = os.path.splitext(original_filename)[1]
-        blob_name = f"{file_hash}{file_ext}"
+        # 2. Create a clean filename (remove spaces/special characters)
+        clean_name = re.sub(r"[^a-zA-Z0-9_\-\.]", "_", original_filename)
+
+        # 3. Use the hash as a folder, but keep original name as the file
+        # Result: "a1b2c3d4.../my_po_file.pdf"
+        blob_name = f"{file_hash}/{clean_name}"
         blob = bucket.blob(blob_name)
 
-        # 3. Check if it already exists in Cloud
+        # 4. Upload if it doesn't exist
         if not blob.exists():
-            print(f"Uploading new file: {blob_name}")
+            print(f"Uploading: {blob_name}")
             blob.upload_from_filename(local_file_path)
         else:
-            print(f"File exists. Linking to: {blob_name}")
+            print(f"File already exists at: {blob_name}")
 
-        # 4. Return Public URL
         return blob.public_url
 
     except Exception as e:

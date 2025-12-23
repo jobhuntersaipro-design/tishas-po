@@ -342,7 +342,7 @@ if selected_tab == "Process New POs":
         # Stop Button only appears if there are pending files
         if len(pending_files) > 0:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("🛑 Stop / Clear Queue", type="secondary"):
+            if st.button("🛑  Stop / Clear Queue", type="secondary"):
                 st.session_state["processing_active"] = False
                 st.session_state["accumulated_files"] = []
                 st.session_state["process_log"] = []
@@ -361,22 +361,31 @@ if selected_tab == "Process New POs":
             total_log_pages = max(1, math.ceil(total_logs / LOGS_PER_PAGE))
 
             # Simple Pagination Controls
-            c_prev_log, c_txt_log, c_next_log = st.columns([1, 2, 1])
+            _, c_prev_log, c_txt_log, c_next_log, _ = st.columns(
+                [4, 1, 2, 1, 4], vertical_alignment="center"
+            )
 
             if c_prev_log.button(
-                "◀", key="log_prev", disabled=st.session_state["log_page"] == 0
+                "◀",
+                key="log_prev",
+                disabled=st.session_state["log_page"] == 0,
+                use_container_width=True,
             ):
                 st.session_state["log_page"] -= 1
                 st.rerun()
 
-            c_txt_log.caption(
+            c_txt_log.markdown(
+                f"<div style='text-align: center; font-size: 1rem; color: gray;'>"
                 f"Page {st.session_state['log_page'] + 1} / {total_log_pages}"
+                f"</div>",
+                unsafe_allow_html=True,
             )
 
             if c_next_log.button(
                 "▶",
                 key="log_next",
                 disabled=st.session_state["log_page"] >= total_log_pages - 1,
+                use_container_width=True,
             ):
                 st.session_state["log_page"] += 1
                 st.rerun()
@@ -401,7 +410,7 @@ if selected_tab == "Process New POs":
         with st.spinner(f"Processing {uploaded_file.name}..."):
 
             st.session_state["process_log"].insert(
-                0, f"[{ts}] ⏳ {uploaded_file.name}..."
+                0, f"[{ts}] ⏳ Processing {uploaded_file.name}..."
             )
 
             file_ext = os.path.splitext(uploaded_file.name)[1].lower()
@@ -486,7 +495,7 @@ if selected_tab == "Process New POs":
         col_list_title, col_save_action = st.columns([5, 2])
         with col_save_action:
             if st.button(
-                "💾 SAVE ALL UNSAVED", type="primary", use_container_width=True
+                "💾 Save all progress", type="primary", use_container_width=True
             ):
                 saved_count = 0
                 for doc in docs_to_display:
