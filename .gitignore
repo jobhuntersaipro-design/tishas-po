@@ -32,3 +32,4 @@ backend/db_connection.py
 backend/setup_neon_db.py
 DEPLOYMENT_GUIDE.md
 secrets.toml
+requirements.txt
