@@ -28,7 +28,6 @@ backend/drop_columns.py
 backend/rename_table.py
 backend/migrate_db.py
 backend/import_retailers.py
-backend/db_connection.py
 backend/setup_neon_db.py
 DEPLOYMENT_GUIDE.md
 secrets.toml

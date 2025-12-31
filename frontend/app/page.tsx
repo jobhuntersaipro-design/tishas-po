@@ -25,6 +25,7 @@ export default function Home() {
   const [processedDocs, setProcessedDocs] = useState<PODocument[]>([]);
   const [historyData, setHistoryData] = useState<PODocument[]>([]);
   const [activeTab, setActiveTab] = useState("process");
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   // Load last visited tab from localStorage on mount (client-side only)
   useEffect(() => {
@@ -45,7 +46,10 @@ export default function Home() {
   // Load history when tab changes
   useEffect(() => {
     if (activeTab === "history") {
-      fetchHistory().then(setHistoryData);
+      setIsLoadingHistory(true);
+      fetchHistory()
+        .then(setHistoryData)
+        .finally(() => setIsLoadingHistory(false));
     }
   }, [activeTab]);
 
@@ -93,34 +97,25 @@ export default function Home() {
         }
 
         if (docs.length > 0) {
-          const doc = docs[0];
-
-          // Check if already exists
-          if (doc.already_exists) {
-            setFilesWithStatus(prev =>
-              prev.map(f => f.file === fileWithStatus.file
-                ? { ...f, status: 'duplicate' as const, doc, error: doc.duplicate_message }
-                : f
-              )
-            );
-            toast.info(doc.duplicate_message || `${doc.po_number} already exists in database`);
-          } else {
-            // Add to processed docs
-            setProcessedDocs(prev => [...prev, doc]);
-            setFilesWithStatus(prev =>
-              prev.map(f => f.file === fileWithStatus.file
-                ? { ...f, status: 'completed' as const, doc }
-                : f
-              )
-            );
+          // Process ALL documents (multi-PO support)
+          for (const doc of docs) {
+            // Check if already exists
             if (doc.already_exists) {
-              toast.warning(`PO ${doc.po_number} already exists in database`, {
-                duration: 5000,
-              });
+              toast.info(doc.duplicate_message || `${doc.po_number} already exists in database`);
             } else {
+              // Add to processed docs
+              setProcessedDocs(prev => [...prev, doc]);
               toast.success(`Successfully extracted PO ${doc.po_number || 'data'}`);
             }
           }
+
+          // Update file status to completed
+          setFilesWithStatus(prev =>
+            prev.map(f => f.file === fileWithStatus.file
+              ? { ...f, status: 'completed' as const, doc: docs[0] }
+              : f
+            )
+          );
         }
       } catch (error: any) {
         // Check if file is still active even on error
@@ -353,7 +348,14 @@ export default function Home() {
 
           {/* TAB 2: HISTORY */}
           <TabsContent value="history">
-            <HistoryTable data={historyData} />
+            {isLoadingHistory ? (
+              <div className="flex flex-col items-center justify-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+                <p className="text-muted-foreground">Loading history from database...</p>
+              </div>
+            ) : (
+              <HistoryTable data={historyData} />
+            )}
           </TabsContent>
         </Tabs>
       </div>

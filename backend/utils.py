@@ -270,7 +270,7 @@ def fetch_all_pos_from_db():
                 unit_price, line_total, file_storage_url, source_filename
             FROM po_data 
             ORDER BY po_number DESC 
-            LIMIT 2000
+            LIMIT 100
         """
         
         cursor.execute(query)
@@ -693,7 +693,7 @@ def save_to_db(doc):
                 or item.get("article_description")
                 or item.get("description")
             )
-            RETAILERS_DF = pd.read_sql("SELECT * FROM retailers", conn)
+
             qty_val = (
                 item.get("Quantity")
                 or item.get("quantity")
@@ -766,28 +766,36 @@ def parse_with_gemini(data, extra_instruction=""):
     """
 
     prompt_base = f"""
-        You are an expert PO data extractor. Extract ALL distinct POs.
-        CRITICAL RULES:
-        1. **VENDOR vs RETAILER:** "Tishas Food Marketing" is the VENDOR. Do not extract it as retailer.
-        2. **DATES:** 
-           - Extract 'po_date'. 
-           - Look for "Delivery Date", "Deliver By", "Required Date", or "Ship Date" for 'delivery_date'. If NOT found, return null.
-           - **EXPIRY DATE RULES:**
-             * For MYDIN: Use "Deliver By" date as the 'expiry_date'
-             * For LOTUS, CHECKERS: Look for "Cancel Date" or "Cancellation Date" as the 'expiry_date'
-             * For others: Look for "Expiry Date", "Best Before", "Use By" for 'expiry_date'
-             * If NOT found, return null
-        3. **BUYER vs BRANCH:**
-           - 'buyer_name': Legal Entity (Bill To).
-           - 'branch_name': Specific Store/Facility (Ship To).
-        4. **SPACING:** Fix mashed words in 'article_description' (e.g. "TISHASROTI" -> "TISHAS ROTI").
-        5. **ITEMS:** Extract EVERY row from the line items table. Do not skip the first row.
-        6. **Unit of Measure (UOM):** If the file doesn't mention it, write 'unit'.
-        7. **PRICES:** Return prices as Numbers (floats), not strings.
-        8. **BARCODES:** Extract barcode if present (often EAN-13 or similar numbers near description).
-
-        Return JSON only:
+        You are an expert PO data extractor. The input contains multiple pages which may contain MULTIPLE DISTINCT Purchase Orders.
+        
+        CRITICAL INSTRUCTION:
+        1. SCAN EVERY SINGLE PAGE OF THE INPUT. 
+        2. DO NOT STOP after finding the first Purchase Order. 
+        3. If there are 10 pages and 10 POs, you must extract 10 separate documents.
+        4. "Tishas Food Marketing" is the VENDOR/SUPPLIER. Do NOT mistake it for the retailer.
+        
+        EXTRACTION RULES:
+        - **Identify Distinct POs:** A new PO usually starts with a new PO Number, a new Reference Number, or a new Retailer/Branch.
+        - **Pagination:** If a single PO flows onto a second page (e.g. "Page 1 of 2"), combine the data into ONE document object.
+        - **Mydin/Giant/Lotus:** These retailers often put different stores on different pages. TREAT THEM AS SEPARATE POs if they have different PO numbers or delivery addresses.
+        
+        FIELDS TO EXTRACT:
+        - 'retailer': The supermarket name (e.g., Mydin, Giant, Lotus).
+        - 'po_number': The unique PO number.
+        - 'po_date': Date of the PO.
+        - 'delivery_date': Expected delivery date (or Ship Date).
+        - 'expiry_date': Use specific rules: MYDIN="Deliver By", LOTUS/CHECKERS="Cancel Date", Others="Expiry/Best Before". Return null if not found.
+        - 'buyer_name': The "Bill To" entity.
+        - 'branch_name': The "Ship To"/"Deliver To" specific store name.
+        - 'items': ALL line items from the table.
+        - 'qty': Quantity (number).
+        - 'uom': Unit of Measure (e.g., "carton", "pcs"). Default to "unit" if unknown.
+        - 'unit_price': Price per unit (number).
+        - 'total_amount': Total PO value (number).
+        
+        Return a JSON object with a "documents" list containing ALL extracted POs.
         {json_schema}
+        
         IMPORTANT RETAILER INSTRUCTION: {extra_instruction}
     """
 
@@ -874,19 +882,59 @@ def process_pdf(file_path, file_hash, source_filename):
             raise e
         print(f"Validation warning: {e}")
 
-    text_fragments = []
-    is_scanned = False
+    raw_docs = []
+    
+    # PER-PAGE EXTRACTION STRATEGY
     try:
         with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text(x_tolerance=2)
-                if text:
-                    text_fragments.append(text)
-        full_text = "\n\n".join(text_fragments)
-        if not full_text.strip() or len(full_text) < 50:
-            is_scanned = True
-    except:
+            total_pages = len(pdf.pages)
+            print(f"Processing {total_pages} pages in {source_filename}...")
+            
+            for i, page in enumerate(pdf.pages):
+                page_num = i + 1
+                text = page.extract_text(x_tolerance=2) or ""
+                
+                # If page has very little text, try OCR (fallback)
+                if len(text.strip()) < 50:
+                    print(f"Page {page_num} seems empty/scanned. Skipping text extraction for this page.")
+                    continue
+                    
+                # Identify Retailer for this specific page
+                t_page = text.upper()
+                curr_page_retailer = "UNKNOWN"
+                if "SELECTION" in t_page: curr_page_retailer = "SELECTION_GROCERIES"
+                elif "PASARAYA" in t_page or "ANGKASA" in t_page: curr_page_retailer = "PASARAYA_ANGKASA"
+                elif "TUNAS" in t_page or "MANJA" in t_page: curr_page_retailer = "TUNAS_MANJA"
+                elif "ROSYAM" in t_page: curr_page_retailer = "ST_ROSYAM"
+                elif "TFP" in t_page: curr_page_retailer = "TFP_GROUP"
+                elif "GLOBAL JAYA" in t_page: curr_page_retailer = "GLOBAL_JAYA"
+                elif "GCH" in t_page: curr_page_retailer = "GIANT"
+                elif "CS GROCER" in t_page: curr_page_retailer = "CS_GROCER"
+                elif "SUPER SEVEN" in t_page: curr_page_retailer = "SUPER_SEVEN"
+                elif "SAM'S GROCERIA" in t_page or "CHECKERS" in t_page: curr_page_retailer = "CHECKERS_SAM"
+                elif "LOTUSS" in t_page: curr_page_retailer = "LOTUS"
+                
+                print(f"Extracting Page {page_num}/{total_pages} (Detected: {curr_page_retailer})...")
+                
+                # Extract using Gemini for THIS PAGE ONLY
+                page_results = parse_with_gemini(text, RETAILER_PROMPT_MAP.get(curr_page_retailer, ""))
+                
+                if page_results:
+                    print(f"  -> Found {len(page_results)} document(s) on page {page_num}")
+                    for doc in page_results:
+                        doc["_page_num"] = page_num # Internal tracking
+                        raw_docs.append(doc)
+
+    except Exception as e:
+        print(f"Error reading PDF: {e}")
+        return None
+
+    if not raw_docs:
+        # Fallback to OCR if no text found in loop
         is_scanned = True
+    else:
+        is_scanned = False
+
 
     if is_scanned:
         try:
@@ -904,30 +952,63 @@ def process_pdf(file_path, file_hash, source_filename):
             raw_docs = parse_with_gemini(image_parts, "Scanned Document")
         except:
             return None
-    else:
-        t = full_text.upper()
-        curr = "UNKNOWN"
-        if "TFP" in t:
-            curr = "TFP_GROUP"
-        elif "GLOBAL JAYA" in t:
-            curr = "GLOBAL_JAYA"
-        elif "GCH" in t:
-            curr = "GIANT"
-        elif "CS GROCER" in t:
-            curr = "CS_GROCER"
-        elif "SUPER SEVEN" in t:
-            curr = "SUPER_SEVEN"
-        elif "SAM'S GROCERIA" in t or "CHECKERS" in t:
-            curr = "CHECKERS_SAM"
-        elif "LOTUSS" in t:
-            curr = "LOTUS"
-        raw_docs = parse_with_gemini(full_text, RETAILER_PROMPT_MAP.get(curr, ""))
 
     if not raw_docs:
         return None
 
-    final_results = []
+    # MERGE LOGIC
+    # CRITICAL: Use COMPOSITE KEY (PO Number + Retailer) to prevent merging different retailers
+    merged_docs_map = {}
+    
     for doc in raw_docs:
+        po_num = str(doc.get("po_number") or "").strip()
+        retailer = str(doc.get("retailer") or "").strip().upper()
+        
+        # Create composite key: "PO_NUMBER|RETAILER_NAME"
+        # This ensures same PO number but different retailers = different entries
+        if po_num and po_num.lower() not in ["null", "none", ""]:
+            merge_key = f"{po_num}|{retailer}" if retailer else po_num
+        else:
+            # No PO number - try to attach to last seen PO with SAME retailer
+            if merged_docs_map:
+                # Find the last PO with matching retailer
+                matching_key = None
+                for key in reversed(list(merged_docs_map.keys())):
+                    existing_retailer = str(merged_docs_map[key].get("retailer") or "").strip().upper()
+                    if existing_retailer == retailer or not retailer:
+                        matching_key = key
+                        break
+                
+                if matching_key:
+                    # Merge with matching retailer
+                    target_doc = merged_docs_map[matching_key]
+                    if doc.get("items"):
+                        target_doc["items"].extend(doc["items"])
+                    print(f"  -> Merged continuation page into {matching_key}")
+                    continue
+            
+            # No match found - create new entry
+            merge_key = f"NO_PO_{len(merged_docs_map)+1}|{retailer}"
+        
+        if merge_key in merged_docs_map:
+            # Merge items for same PO + Retailer combo
+            target = merged_docs_map[merge_key]
+            if doc.get("items"):
+                target["items"].extend(doc["items"])
+            # Update missing fields
+            for k, v in doc.items():
+                if not target.get(k) and v:
+                    target[k] = v
+            print(f"  -> Merged into existing PO: {merge_key}")
+        else:
+            merged_docs_map[merge_key] = doc
+            print(f"  -> Created new PO entry: {merge_key}")
+
+    final_results = []
+    for doc in merged_docs_map.values():
+        # Clean up internal keys
+        if "_page_num" in doc: del doc["_page_num"]
+        
         doc = enrich_po_data(doc, file_hash)
         doc = clean_nan_values(doc)
         final_results.append(doc)
