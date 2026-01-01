@@ -773,9 +773,10 @@ def parse_with_gemini(data, extra_instruction=""):
         1. SCAN EVERY SINGLE PAGE OF THE INPUT. 
         2. DO NOT STOP after finding the first Purchase Order. 
         3. If there are 10 pages and 10 POs, you must extract 10 separate documents.
-        4. **IMPORTANT**: "Tishas Food Marketing" / "Tishas Food Manufacturing" is the VENDOR/SUPPLIER (the seller). 
+        4. **IMPORTANT**: "Tishas Food Marketing" / "Tishas Food Manufacturing" / "TRI SHAAS" is the VENDOR/SUPPLIER (the seller). 
            - The BUYER is the RETAILER (Mydin, Giant, Lotus, etc.) who is purchasing from Tishas.
-           - NEVER extract "Tishas" as the buyer_name. The buyer_name should be the retailer's legal entity name.
+           - NEVER extract "Tishas" or "Tri Shaas" as the retailer or buyer_name.
+           - The retailer should be the BUYER's company name (e.g., MYDIN, GIANT, LOTUS, CS GROCER).
         
         EXTRACTION RULES:
         - **Identify Distinct POs:** A new PO usually starts with a new PO Number, a new Reference Number, or a new Retailer/Branch.
@@ -783,7 +784,11 @@ def parse_with_gemini(data, extra_instruction=""):
         - **Mydin/Giant/Lotus:** These retailers often put different stores on different pages. TREAT THEM AS SEPARATE POs if they have different PO numbers or delivery addresses.
         
         FIELDS TO EXTRACT:
-        - 'retailer': The supermarket name (e.g., Mydin, Giant, Lotus).
+        - 'retailer': **CRITICAL** - Extract the BUYER's company name (the supermarket/retailer purchasing from Tishas).
+            * Examples: "MYDIN", "GIANT", "LOTUS", "CS GROCER", "CHECKERS", "TUNAS MANJA"
+            * NEVER use "Tishas", "Tri Shaas", "Tishas Food Marketing", or "Tishas Food Manufacturing"
+            * Look for the company name in the "Bill To" or "Buyer" section
+            * This should be the retailer's SHORT NAME (e.g., "MYDIN" not "MYDIN MOHAMED HOLDINGS BHD")
         - 'po_number': The unique PO number.
         - 'po_date': Date of the PO.
         - 'delivery_date': Expected delivery date (or Ship Date).
@@ -800,7 +805,7 @@ def parse_with_gemini(data, extra_instruction=""):
             1. First, search for keywords "Buyer:", "Agent:", "Buyer Name:", "Agent Name:" in the document
             2. If found, extract the name that follows (e.g., "Buyer: QUSYAIRI" → extract "QUSYAIRI")
             3. If NOT found, use the retailer's legal entity name from "Bill To" section
-            4. NEVER use "Tishas" as the buyer_name - Tishas is the vendor/supplier
+            4. NEVER use "Tishas" or "Tri Shaas" as the buyer_name - Tishas is the vendor/supplier
         - 'branch_name': The "Ship To"/"Deliver To" specific store name.
         - 'items': ALL line items from the table.
         - 'qty': Quantity (number).

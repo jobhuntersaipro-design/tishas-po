@@ -83,13 +83,13 @@ export function HistoryTable({ data, onRefresh, isRefreshing = false }: HistoryT
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex items-center gap-2 w-full md:w-auto">
                     <Input
-                        placeholder="Search..."
+                        placeholder="Search by PO Number, Retailer, Debtor Code, or Branch"
                         value={searchTerm}
                         onChange={(e) => {
                             setSearchTerm(e.target.value);
                             setCurrentPage(1);
                         }}
-                        className="max-w-sm"
+                        className="w-full md:min-w-[400px]"
                     />
                     <Button
                         variant="outline"
