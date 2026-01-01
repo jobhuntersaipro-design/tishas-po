@@ -11,7 +11,7 @@ from io import BytesIO
 from typing import Any
 
 from difflib import SequenceMatcher
-import google.generativeai as genai
+from google import genai
 import pandas as pd
 from google.cloud import storage
 from google.oauth2 import service_account
@@ -31,9 +31,10 @@ load_dotenv()
 api_key = os.getenv("GEMINI_API_KEY")
 
 if api_key:
-    genai.configure(api_key=api_key)
+    client = genai.Client(api_key=api_key)
 else:
     print("Warning: GEMINI_API_KEY not found in environment variables")
+    client = None
 
 # 2. Database Configuration (SQLite)
 DB_NAME = "tishas_demo.db"
@@ -818,11 +819,17 @@ def parse_with_gemini(data, extra_instruction=""):
     parts.insert(0, prompt)
 
     try:
-        generation_config = {"response_mime_type": "application/json"}
-        model = genai.GenerativeModel(
-            "gemini-2.5-flash", generation_config=generation_config
+        if not client:
+            print("  !! [AI Error]: Gemini client not initialized")
+            return None
+            
+        response = client.models.generate_content(
+            model='gemini-2.0-flash-exp',
+            contents=parts,
+            config=genai.types.GenerateContentConfig(
+                response_mime_type="application/json"
+            )
         )
-        response = model.generate_content(parts)
 
         clean_json = response.text.replace("```json", "").replace("```", "").strip()
         if not clean_json.startswith("{") and "{" in clean_json:

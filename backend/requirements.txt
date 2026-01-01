@@ -4,7 +4,7 @@ python-dotenv
 pandas
 psycopg2-binary
 sqlalchemy
-google-generativeai
+google-genai
 google-cloud-storage
 pdf2image
 pillow
