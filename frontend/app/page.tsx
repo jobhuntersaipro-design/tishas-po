@@ -303,7 +303,7 @@ export default function Home() {
               >
                 <UploadCloud className={`h-12 w-12 mb-4 transition-colors ${isDragging ? 'text-primary' : 'text-primary'
                   }`} />
-                <h3 className="text-xl font-bold mb-4">
+                <h3 className="text-xl font-bold mb-4 text-center">
                   {isDragging ? 'Drop files here' : 'Upload Purchase Order Files'}
                 </h3>
                 <div className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-bold text-md hover:bg-primary/90 transition-colors shadow-lg pointer-events-none">
