@@ -13,7 +13,17 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 import utils
-import google_sheets_service
+google_sheets_service = None
+google_service_available = False
+
+try:
+    import google_sheets_service
+    google_service_available = True
+    print("SUCCESS: Google Sheets Service loaded.")
+except ImportError as e:
+    print(f"CRITICAL WARNING: Google Library missing. Service disabled. Error: {e}")
+except Exception as e:
+    print(f"CRITICAL WARNING: Error loading Google Service: {e}")
 
 app = FastAPI(title="Tishas PO Extractor API")
 
