@@ -38,6 +38,3 @@ backend/fix_tri_shaas.py
 DEPLOYMENT_GUIDE.md
 secrets.toml
 
-# Keep requirements.txt in git - it's needed for deployment
-# Just comment this line if you want to exclude it:
-# requirements.txt

@@ -6,3 +6,5 @@ pdfplumber
 pdf2image
 Pillow
 mysql-connector-python
+google-auth-oauthlib
+google-api-python-client
