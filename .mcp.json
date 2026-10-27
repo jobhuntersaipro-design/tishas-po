@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "arc": {
+      "type": "http",
+      "url": "https://uiarc.dev/api/mcp",
+      "headers": {
+        "Authorization": "Bearer ${ARC_PRO_TOKEN}"
+      }
+    }
+  }
+}
